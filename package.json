@@ -1,0 +1,12 @@
+{
+  "name": "oke-bakery-pos",
+  "version": "1.0.0",
+  "description": "Aplikasi Kasir & Pre-Order Oke Bakery",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.0.0"
+  }
+}

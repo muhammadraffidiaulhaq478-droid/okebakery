@@ -1,0 +1,750 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Oke Bakery - Sistem Kasir & Pre-Order</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Google Fonts: Plus Jakarta Sans & JetBrains Mono untuk Struk -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['"Plus Jakarta Sans"', 'sans-serif'],
+                        mono: ['"JetBrains Mono"', 'monospace'],
+                    },
+                    colors: {
+                        bakery: {
+                            cream: '#FDF8F2',
+                            latte: '#F5EBE0',
+                            caramel: '#D5A06D',
+                            crust: '#A96E38',
+                            cocoa: '#4A2C18',
+                            espresso: '#2D1A0E',
+                            gold: '#E59838'
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #F5EBE0;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #D5A06D;
+            border-radius: 8px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #A96E38;
+        }
+
+        @media print {
+            body * {
+                visibility: hidden;
+            }
+            #printable-receipt-area, #printable-receipt-area * {
+                visibility: visible;
+            }
+            #printable-receipt-area {
+                position: absolute;
+                left: 0;
+                top: 0;
+                width: 80mm;
+                margin: 0;
+                padding: 4mm;
+                box-shadow: none !important;
+                border: none !important;
+                background: white !important;
+                color: black !important;
+            }
+            .no-print {
+                display: none !important;
+            }
+        }
+    </style>
+</head>
+<body class="bg-bakery-cream text-bakery-espresso font-sans antialiased min-h-screen flex flex-col">
+
+    <!-- Toast Notification Container -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-50 flex flex-col gap-2 pointer-events-none"></div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 0: LOGIN & PENGATURAN KATA SANDI (SECURITY LOCK)                -->
+    <!-- ===================================================================== -->
+    <div id="login-modal" class="fixed inset-0 bg-bakery-espresso/90 backdrop-blur-md z-50 flex items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-md w-full p-6 sm:p-8 shadow-2xl border border-bakery-caramel/40 space-y-6">
+            <div class="text-center space-y-2">
+                <div class="w-16 h-16 mx-auto rounded-2xl bg-bakery-gold flex items-center justify-center text-bakery-espresso shadow-md">
+                    <svg viewBox="0 0 64 64" class="w-10 h-10" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="32" cy="32" r="29" fill="#FFF8EE" stroke="#A96E38" stroke-width="3"/>
+                        <path d="M16 38C16 26 24 20 32 20C40 20 48 26 48 38C48 41 45 43 42 43H22C19 43 16 41 16 38Z" fill="#E59838" stroke="#4A2C18" stroke-width="2.5"/>
+                        <path d="M24 22C25 26 25 30 23 34M32 20C33 25 33 30 32 35M40 22C39 26 39 30 41 34" stroke="#4A2C18" stroke-width="2.2" stroke-linecap="round"/>
+                        <path d="M22 47H42" stroke="#A96E38" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-extrabold text-bakery-cocoa">Login Oke Bakery</h2>
+                <p id="login-subtitle" class="text-xs text-bakery-cocoa/70">Pilih akun kasir atau login admin untuk mulai bertransaksi</p>
+            </div>
+
+            <form onsubmit="handleLoginSubmit(event)" class="space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-bakery-cocoa mb-1">Pilih Karyawan / Kasir</label>
+                    <select id="login-employee-select" onchange="handleLoginEmployeeChange()" 
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-bakery-cream border border-bakery-latte focus:border-bakery-crust outline-none text-sm font-semibold text-bakery-espresso">
+                        <!-- Di-render via JS -->
+                    </select>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-bakery-cocoa mb-1">Kata Sandi (Password / PIN)</label>
+                    <input type="password" id="login-password-input" required placeholder="Masukkan kata sandi..." 
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-bakery-cream border border-bakery-latte focus:border-bakery-crust outline-none text-sm font-semibold">
+                </div>
+
+                <button type="submit" 
+                    class="w-full py-3.5 rounded-xl bg-bakery-cocoa hover:bg-bakery-espresso text-white font-bold text-sm shadow-lg shadow-bakery-cocoa/20 transition-all">
+                    Buka Kasir Sekarang
+                </button>
+            </form>
+            
+            <div class="text-center pt-2 border-t border-bakery-latte">
+        </div>
+    </div>
+
+    <!-- HEADER & BRANDING OKE BAKERY -->
+    <header class="bg-bakery-cocoa text-bakery-cream shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3 flex flex-wrap items-center justify-between gap-3">
+            <!-- Brand Identity dengan Logo Custom -->
+            <div class="flex items-center gap-3">
+                <div id="header-logo-container" class="w-11 h-11 rounded-2xl bg-bakery-gold flex items-center justify-center text-bakery-espresso shadow-inner overflow-hidden shrink-0">
+                    <svg viewBox="0 0 64 64" class="w-8 h-8" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="32" cy="32" r="29" fill="#FFF8EE" stroke="#A96E38" stroke-width="3"/>
+                        <path d="M16 38C16 26 24 20 32 20C40 20 48 26 48 38C48 41 45 43 42 43H22C19 43 16 41 16 38Z" fill="#E59838" stroke="#4A2C18" stroke-width="2.5"/>
+                        <path d="M24 22C25 26 25 30 23 34M32 20C33 25 33 30 32 35M40 22C39 26 39 30 41 34" stroke="#4A2C18" stroke-width="2.2" stroke-linecap="round"/>
+                        <path d="M22 47H42" stroke="#A96E38" stroke-width="2.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <div>
+                    <div class="flex items-center gap-2">
+                        <h1 id="header-store-name" class="text-xl sm:text-2xl font-extrabold tracking-tight text-white">Oke Bakery</h1>
+                        <span id="header-active-cashier-badge" class="text-[11px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full bg-bakery-gold/20 text-bakery-gold border border-bakery-gold/30">Kasir: Admin</span>
+                    </div>
+                    <p id="header-store-meta" class="text-xs text-bakery-latte/80 flex items-center gap-1">
+                        <i data-lucide="map-pin" class="w-3 h-3 text-bakery-gold"></i>
+                        <span>Desa.Karangharjo Kec.Glenmore Kab.Banyuwangi, Jawa Timur • WA: 0877-5580-6346</span>
+                    </p>
+                </div>
+            </div>
+
+            <!-- Navigasi Tab Utama -->
+            <nav class="flex items-center gap-1.5 bg-bakery-espresso/70 p-1 rounded-2xl border border-bakery-caramel/25 order-3 lg:order-2 w-full lg:w-auto justify-between sm:justify-start">
+                <button type="button" id="nav-tab-pos" onclick="switchMainView('pos')" 
+                    class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all bg-bakery-gold text-bakery-espresso shadow-xs">
+                    <i data-lucide="store" class="w-4 h-4"></i>
+                    <span>Kasir & Order</span>
+                </button>
+                <button type="button" id="nav-tab-po" onclick="switchMainView('po')" 
+                    class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-bakery-cream hover:bg-white/10">
+                    <i data-lucide="calendar-clock" class="w-4 h-4 text-bakery-gold"></i>
+                    <span>Daftar Pesanan</span>
+                    <span id="active-po-badge" class="px-1.5 py-0.2 text-[11px] rounded-full bg-amber-500 text-bakery-espresso font-extrabold">0</span>
+                </button>
+                <button type="button" id="nav-tab-history" onclick="switchMainView('history')" 
+                    class="flex-1 sm:flex-initial flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all text-bakery-cream hover:bg-white/10">
+                    <i data-lucide="bar-chart-3" class="w-4 h-4 text-bakery-gold"></i>
+                    <span>Riwayat Penjualan</span>
+                </button>
+            </nav>
+
+            <!-- Action Navigation Buttons -->
+            <div class="flex items-center gap-2 order-2 lg:order-3">
+                <button type="button" onclick="openSettingsModal()" class="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-bakery-espresso/80 hover:bg-bakery-espresso text-bakery-cream border border-bakery-caramel/30 font-semibold text-xs sm:text-sm transition-all active:scale-95" title="Pengaturan Toko & Karyawan">
+                    <i data-lucide="settings" class="w-4 h-4 text-bakery-gold"></i>
+                    <span class="hidden sm:inline">Pengaturan</span>
+                </button>
+                <button type="button" onclick="openMenuModal()" class="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-bakery-crust hover:bg-bakery-gold hover:text-bakery-espresso text-white font-semibold text-xs sm:text-sm transition-all shadow-sm active:scale-95">
+                    <i data-lucide="plus-circle" class="w-4 h-4"></i>
+                    <span>Kelola Menu</span>
+                </button>
+                <button type="button" onclick="lockSession()" class="p-2 rounded-xl bg-red-900/60 hover:bg-red-900 text-red-200 transition" title="Kunci / Ganti Akun Kasir">
+                    <i data-lucide="lock" class="w-4 h-4"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 1: KASIR & ORDER (PEMBELIAN BIASA & PRE-ORDER)                   -->
+    <!-- ===================================================================== -->
+    <main id="view-pos" class="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-5 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+        
+        <!-- KOLOM KIRI: KATALOG MENU ROTI -->
+        <section class="lg:col-span-7 flex flex-col gap-4">
+            <div class="bg-white p-4 rounded-2xl shadow-sm border border-bakery-latte flex flex-col gap-3">
+                <div class="relative">
+                    <i data-lucide="search" class="w-5 h-5 text-bakery-crust absolute left-3.5 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="search-input" oninput="renderMenuGrid()" placeholder="Cari nama roti, donat, atau kue..." 
+                        class="w-full pl-11 pr-4 py-2.5 rounded-xl bg-bakery-cream/70 border border-bakery-latte focus:border-bakery-crust outline-none text-sm font-medium">
+                </div>
+                
+                <div id="category-filters" class="flex items-center gap-2 overflow-x-auto pb-1">
+                    <!-- Render via JS -->
+                </div>
+            </div>
+
+            <div id="menu-grid" class="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
+                <!-- Render via JS -->
+            </div>
+        </section>
+
+        <!-- KOLOM KANAN: PANEL KASIR & PRE-ORDER -->
+        <section class="lg:col-span-5 bg-white rounded-2xl shadow-md border border-bakery-latte flex flex-col overflow-hidden sticky top-20">
+            <div class="p-4 bg-bakery-latte/60 border-b border-bakery-latte flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="shopping-bag" class="w-5 h-5 text-bakery-crust"></i>
+                    <h2 class="font-bold text-base text-bakery-cocoa">Pesanan Saat Ini</h2>
+                </div>
+                <button onclick="clearCart()" class="text-xs font-semibold text-red-600 hover:underline flex items-center gap-1">
+                    <i data-lucide="trash-2" class="w-3.5 h-3.5"></i> Kosongkan
+                </button>
+            </div>
+
+            <!-- Switch Tipe Pesanan: Pembelian Biasa vs Pre-Order -->
+            <div class="p-3 bg-bakery-cream/50 border-b border-bakery-latte">
+                <div class="grid grid-cols-2 gap-1.5 p-1 bg-bakery-latte rounded-xl">
+                    <button type="button" id="btn-type-direct" onclick="setOrderType('direct')" 
+                        class="py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all bg-bakery-cocoa text-white shadow-sm">
+                        <i data-lucide="store" class="w-4 h-4"></i>
+                        <span>Pembelian Biasa</span>
+                    </button>
+                    <button type="button" id="btn-type-po" onclick="setOrderType('po')" 
+                        class="py-2 px-3 rounded-lg text-xs sm:text-sm font-bold flex items-center justify-center gap-1.5 transition-all text-bakery-cocoa hover:bg-white/60">
+                        <i data-lucide="truck" class="w-4 h-4"></i>
+                        <span>Pre-Order (PO)</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- FORM DETAIL PRE-ORDER (Wajib diisi jika PO) -->
+            <div id="po-form-section" class="hidden p-4 bg-amber-50/70 border-b border-amber-200/80 space-y-3 text-sm">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-extrabold uppercase tracking-wider text-bakery-crust flex items-center gap-1">
+                        <i data-lucide="clipboard-list" class="w-3.5 h-3.5"></i> Data Pemesan Pre-Order (Wajib)
+                    </span>
+                    <span class="text-[11px] text-amber-700 font-medium">Tercetak di Struk PO</span>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Nama Pemesan *</label>
+                        <input type="text" id="po-name" placeholder="Contoh: Ibu Rina" 
+                            class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-bakery-cocoa mb-1">No. Telepon / WA *</label>
+                        <input type="tel" id="po-phone" placeholder="0812xxxxxxxx" 
+                            class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-medium">
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Alamat Lengkap Pengiriman *</label>
+                    <textarea id="po-address" rows="2" placeholder="Nama jalan, nomor rumah, RT/RW, patokan..." 
+                        class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-medium resize-none"></textarea>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Jadwal Kirim / Ambil *</label>
+                        <input type="datetime-local" id="po-datetime" 
+                            class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-medium">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Zona Ongkos Kirim</label>
+                        <select id="po-shipping-zone" onchange="handleShippingZoneChange()" 
+                            class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-semibold">
+                            <option value="0">Ambil di Toko (Rp 0)</option>
+                            <option value="10000">(Rp 100.000)</option>
+                            <option value="15000">(Rp 50.000)</option>
+                            <option value="25000">(Rp 15.000)</option>
+                            <option value="custom">Input Manual Nominal Ongkir...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div id="custom-shipping-wrapper" class="hidden">
+                    <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Nominal Ongkir Manual (Rp)</label>
+                    <input type="number" id="po-shipping-custom" min="0" step="1000" value="0" oninput="recalculateTotals()" 
+                        class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-bold">
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-bakery-cocoa mb-1">Catatan / Ucapan Kue (Opsional)</label>
+                    <input type="text" id="po-notes" placeholder="Misal: Tulisan 'Selamat Ulang Tahun', kirim pagi" 
+                        class="w-full px-3 py-2 rounded-xl bg-white border border-amber-200 focus:border-bakery-crust outline-none text-xs font-medium">
+                </div>
+            </div>
+
+            <!-- Daftar Item Keranjang -->
+            <div id="cart-items-container" class="p-4 max-h-56 overflow-y-auto divide-y divide-bakery-latte">
+                <!-- Render via JS -->
+            </div>
+
+            <!-- Kalkulasi & Checkout -->
+            <div class="p-4 bg-bakery-cream/80 border-t border-bakery-latte space-y-2.5 text-sm">
+                <div class="flex justify-between text-bakery-cocoa/80">
+                    <span>Subtotal (<span id="total-qty-label">0</span> item)</span>
+                    <span id="summary-subtotal" class="font-semibold">Rp 0</span>
+                </div>
+
+                <div id="summary-shipping-row" class="hidden flex justify-between text-amber-800">
+                    <span>Ongkos Kirim (PO)</span>
+                    <span id="summary-shipping" class="font-semibold">Rp 0</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-2">
+                    <span class="text-bakery-cocoa/80">Diskon (Rp)</span>
+                    <input type="number" id="discount-input" min="0" step="500" value="0" oninput="recalculateTotals()" 
+                        class="w-28 text-right px-2.5 py-1 rounded-lg bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-xs font-semibold">
+                </div>
+
+                <div class="pt-2 border-t border-bakery-caramel/40 flex justify-between items-center">
+                    <span class="font-extrabold text-base text-bakery-cocoa">TOTAL BAYAR</span>
+                    <span id="summary-grand-total" class="font-extrabold text-xl text-bakery-crust">Rp 0</span>
+                </div>
+
+                <div class="flex items-center justify-between gap-2 pt-1">
+                    <label class="font-bold text-xs text-bakery-cocoa">Metode Bayar</label>
+                    <select id="payment-method-input" class="px-3 py-1.5 rounded-lg bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-xs font-bold text-bakery-espresso">
+                        <option value="Tunai (Cash)">Tunai (Cash)</option>
+                        <option value="QRIS">QRIS</option>
+                        <option value="Transfer Bank">Transfer Bank</option>
+                        <option value="DP / Bayar Nanti (PO)">DP / Bayar Nanti (PO)</option>
+                    </select>
+                </div>
+
+                <div class="pt-1 space-y-2">
+                    <div class="flex items-center justify-between gap-2">
+                        <label class="font-bold text-xs text-bakery-cocoa">Nominal Dibayar (Rp)</label>
+                        <button type="button" onclick="setExactCash()" class="text-[11px] font-bold px-2.5 py-1 rounded-lg bg-bakery-latte hover:bg-bakery-caramel hover:text-white text-bakery-cocoa transition">
+                            Uang Pas
+                        </button>
+                    </div>
+                    <input type="number" id="cash-input" min="0" step="1000" placeholder="Masukkan nominal bayar..." oninput="recalculateTotals()" 
+                        class="w-full px-3.5 py-2.5 rounded-xl bg-white border-2 border-bakery-caramel/60 focus:border-bakery-crust outline-none font-bold text-base text-right text-bakery-espresso">
+                </div>
+
+                <div class="flex justify-between items-center pt-1">
+                    <span class="text-xs font-bold text-bakery-cocoa/80">Kembalian</span>
+                    <span id="summary-change" class="font-extrabold text-base text-emerald-700">Rp 0</span>
+                </div>
+
+                <button type="button" onclick="processCheckout()" 
+                    class="w-full mt-2 py-3.5 px-4 rounded-xl bg-bakery-cocoa hover:bg-bakery-espresso text-white font-bold text-sm sm:text-base shadow-lg shadow-bakery-cocoa/20 flex items-center justify-center gap-2 transition-all active:scale-[0.99]">
+                    <i data-lucide="receipt" class="w-5 h-5 text-bakery-gold"></i>
+                    <span>Proses & Buat Struk</span>
+                </button>
+            </div>
+        </section>
+    </main>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 2: DAFTAR PRE-ORDER (TAB KELOLA STATUS PO)                       -->
+    <!-- ===================================================================== -->
+    <section id="view-po" class="hidden flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
+        <div class="bg-white p-5 rounded-2xl shadow-sm border border-bakery-latte flex flex-col md:flex-row md:items-center justify-between gap-4">
+            <div>
+                <div class="flex items-center gap-2">
+                    <span class="w-9 h-9 rounded-xl bg-amber-100 text-bakery-crust flex items-center justify-center">
+                        <i data-lucide="calendar-clock" class="w-5 h-5"></i>
+                    </span>
+                    <div>
+                        <h2 class="text-lg sm:text-xl font-extrabold text-bakery-cocoa">Daftar Pesanan Pre-Order (PO)</h2>
+                        <p class="text-xs text-bakery-cocoa/70">Kelola jadwal kirim, alamat pelanggan, dan status pengerjaan PO.</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="relative flex-1 sm:w-64">
+                    <i data-lucide="search" class="w-4 h-4 text-bakery-crust absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="po-search-input" oninput="renderPOListView()" placeholder="Cari nama, HP, no struk..." 
+                        class="w-full pl-9 pr-3 py-2 rounded-xl bg-bakery-cream border border-bakery-latte focus:border-bakery-crust outline-none text-xs font-medium">
+                </div>
+                <button type="button" onclick="switchMainView('pos'); setOrderType('po');" 
+                    class="px-4 py-2 rounded-xl bg-bakery-crust hover:bg-bakery-cocoa text-white text-xs font-bold flex items-center gap-1.5 transition">
+                    <i data-lucide="plus" class="w-4 h-4"></i> Buat PO Baru
+                </button>
+            </div>
+        </div>
+
+        <div id="po-status-filters" class="flex items-center gap-2 overflow-x-auto pb-1">
+            <!-- Render via JS -->
+        </div>
+
+        <div id="po-cards-container" class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <!-- Render via JS -->
+        </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- VIEW 3: RIWAYAT PENJUALAN & LAPORAN                                   -->
+    <!-- ===================================================================== -->
+    <section id="view-history" class="hidden flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 py-6 space-y-5">
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="bg-white p-4 rounded-2xl border border-bakery-latte shadow-xs flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center shrink-0">
+                    <i data-lucide="wallet" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-bakery-cocoa/70">Total Pendapatan</p>
+                    <h3 id="kpi-total-revenue" class="text-lg sm:text-xl font-extrabold text-bakery-espresso">Rp 0</h3>
+                    <p class="text-[11px] text-emerald-700 font-medium">Tidak termasuk pesanan batal</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-bakery-latte shadow-xs flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-amber-100 text-bakery-crust flex items-center justify-center shrink-0">
+                    <i data-lucide="receipt" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-bakery-cocoa/70">Total Transaksi</p>
+                    <h3 id="kpi-total-trx" class="text-lg sm:text-xl font-extrabold text-bakery-espresso">0 Nota</h3>
+                    <p id="kpi-trx-breakdown" class="text-[11px] text-bakery-crust font-medium">0 Biasa • 0 PO</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-bakery-latte shadow-xs flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-orange-100 text-orange-700 flex items-center justify-center shrink-0">
+                    <i data-lucide="truck" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-bakery-cocoa/70">Omzet Pre-Order</p>
+                    <h3 id="kpi-po-revenue" class="text-lg sm:text-xl font-extrabold text-bakery-espresso">Rp 0</h3>
+                    <p id="kpi-direct-revenue" class="text-[11px] text-bakery-cocoa/70 font-medium">Biasa: Rp 0</p>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-2xl border border-bakery-latte shadow-xs flex items-center gap-3.5">
+                <div class="w-12 h-12 rounded-2xl bg-bakery-latte text-bakery-cocoa flex items-center justify-center shrink-0">
+                    <i data-lucide="croissant" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <p class="text-xs font-semibold text-bakery-cocoa/70">Total Roti Terjual</p>
+                    <h3 id="kpi-items-sold" class="text-lg sm:text-xl font-extrabold text-bakery-espresso">0 Pcs</h3>
+                    <p class="text-[11px] text-bakery-cocoa/70 font-medium">Akumulasi seluruh menu</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="bg-white p-4 rounded-2xl shadow-sm border border-bakery-latte flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+            <div class="flex flex-wrap items-center gap-2.5">
+                <div class="relative w-full sm:w-60">
+                    <i data-lucide="search" class="w-4 h-4 text-bakery-crust absolute left-3 top-1/2 -translate-y-1/2"></i>
+                    <input type="text" id="history-search-input" oninput="renderSalesHistoryView()" placeholder="Cari no. struk atau nama..." 
+                        class="w-full pl-9 pr-3 py-2 rounded-xl bg-bakery-cream border border-bakery-latte focus:border-bakery-crust outline-none text-xs font-medium">
+                </div>
+
+                <select id="history-type-filter" onchange="renderSalesHistoryView()" class="px-3 py-2 rounded-xl bg-bakery-cream border border-bakery-latte text-xs font-bold text-bakery-cocoa outline-none">
+                    <option value="all">Semua Tipe Pesanan</option>
+                    <option value="direct">Pembelian Biasa</option>
+                    <option value="po">Pre-Order (PO)</option>
+                </select>
+
+                <select id="history-date-preset" onchange="handleHistoryDatePreset()" class="px-3 py-2 rounded-xl bg-bakery-cream border border-bakery-latte text-xs font-bold text-bakery-cocoa outline-none">
+                    <option value="all">Semua Tanggal</option>
+                    <option value="today">Hari Ini</option>
+                    <option value="custom">Pilih Tanggal...</option>
+                </select>
+
+                <input type="date" id="history-date-custom" onchange="renderSalesHistoryView()" class="hidden px-3 py-1.5 rounded-xl bg-bakery-cream border border-bakery-latte text-xs font-bold text-bakery-cocoa outline-none">
+            </div>
+
+            <div>
+                <button type="button" onclick="exportSalesCSV()" class="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center gap-1.5 transition">
+                    <i data-lucide="download" class="w-4 h-4"></i> Export Laporan CSV
+                </button>
+            </div>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-bakery-latte overflow-hidden">
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-bakery-latte/70 border-b border-bakery-latte text-[11px] font-extrabold uppercase tracking-wider text-bakery-cocoa">
+                            <th class="py-3.5 px-4">No. Struk & Waktu</th>
+                            <th class="py-3.5 px-4">Tipe & Kasir</th>
+                            <th class="py-3.5 px-4">Pelanggan (PO)</th>
+                            <th class="py-3.5 px-4">Rincian Item</th>
+                            <th class="py-3.5 px-4 text-right">Ongkir</th>
+                            <th class="py-3.5 px-4 text-right">Total Bayar</th>
+                            <th class="py-3.5 px-4 text-center">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody id="sales-history-tbody" class="divide-y divide-bakery-latte text-xs">
+                        <!-- Render via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </section>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 1: PENGATURAN LENGKAP (TOKO, LOGO & KARYAWAN + SANDI)           -->
+    <!-- ===================================================================== -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-bakery-latte">
+            <div class="p-5 bg-bakery-cocoa text-white flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="settings" class="w-5 h-5 text-bakery-gold"></i>
+                    <h3 class="font-bold text-lg">Pengaturan Toko, Logo & Karyawan (Sandi)</h3>
+                </div>
+                <button type="button" onclick="closeSettingsModal()" class="p-1.5 rounded-xl hover:bg-white/10 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-6">
+                <!-- Bagian A: Profil Toko & Logo -->
+                <form onsubmit="saveStoreProfile(event)" class="bg-bakery-cream p-4 rounded-2xl border border-bakery-latte space-y-3">
+                    <h4 class="font-bold text-sm text-bakery-cocoa flex items-center gap-1.5">
+                        <i data-lucide="store" class="w-4 h-4 text-bakery-crust"></i> Informasi Profil & Logo Toko
+                    </h4>
+                    <div class="flex items-center gap-4 bg-white p-3 rounded-xl border border-bakery-latte">
+                        <div id="store-logo-preview-box" class="w-16 h-16 rounded-2xl bg-bakery-gold flex items-center justify-center overflow-hidden border shrink-0"></div>
+                        <div class="space-y-1.5 flex-1">
+                            <label class="block text-xs font-bold text-bakery-cocoa">Ganti Logo Toko (Struk & Header)</label>
+                            <input type="file" id="store-logo-file" accept="image/*" onchange="handleStoreLogoUpload(event)" 
+                                class="w-full text-xs text-bakery-cocoa file:mr-2 file:py-1 file:px-2.5 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-bakery-cocoa file:text-white cursor-pointer">
+                            <button type="button" onclick="resetStoreLogo()" class="text-[11px] font-semibold text-red-600 hover:underline">Gunakan Logo Bawaan</button>
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">Nama Toko *</label>
+                            <input type="text" id="store-name-input" required class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte outline-none text-xs">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">No. Telepon / WA Toko *</label>
+                            <input type="text" id="store-phone-input" required class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte outline-none text-xs">
+                        </div>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-bakery-cocoa mb-1">Alamat Toko *</label>
+                        <input type="text" id="store-address-input" required class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte outline-none text-xs">
+                    </div>
+                    <div class="flex justify-end">
+                        <button type="submit" class="px-4 py-2 rounded-xl bg-bakery-crust hover:bg-bakery-cocoa text-white font-bold text-xs transition">Simpan Toko</button>
+                    </div>
+                </form>
+
+                <!-- Bagian B: Manajemen Karyawan & Kata Sandi -->
+                <div class="bg-bakery-cream p-4 rounded-2xl border border-bakery-latte space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="font-bold text-sm text-bakery-cocoa flex items-center gap-1.5">
+                            <i data-lucide="users" class="w-4 h-4 text-bakery-crust"></i> Manajemen Karyawan & Kata Sandi (PIN)
+                        </h4>
+                        <button type="button" onclick="openAddEmployeeForm()" class="px-3 py-1.5 rounded-lg bg-bakery-crust text-white text-xs font-bold hover:bg-bakery-cocoa transition">
+                            + Tambah Karyawan
+                        </button>
+                    </div>
+
+                    <!-- Form Tambah/Edit Karyawan (Inline) -->
+                    <form id="employee-form" onsubmit="saveEmployee(event)" class="hidden bg-white p-3.5 rounded-xl border border-bakery-caramel/50 space-y-3">
+                        <input type="hidden" id="edit-employee-id">
+                        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                            <div>
+                                <label class="block text-[11px] font-bold text-bakery-cocoa mb-1">Nama Karyawan *</label>
+                                <input type="text" id="emp-name" required placeholder="Nama kasir" class="w-full px-2.5 py-1.5 rounded-lg border text-xs outline-none">
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-bakery-cocoa mb-1">Role</label>
+                                <select id="emp-role" class="w-full px-2.5 py-1.5 rounded-lg border text-xs outline-none font-bold">
+                                    <option value="Kasir">Kasir</option>
+                                    <option value="Admin">Admin</option>
+                                </select>
+                            </div>
+                            <div>
+                                <label class="block text-[11px] font-bold text-bakery-cocoa mb-1">Kata Sandi / PIN *</label>
+                                <input type="text" id="emp-pass" required placeholder="Password login" class="w-full px-2.5 py-1.5 rounded-lg border text-xs outline-none font-mono">
+                            </div>
+                        </div>
+                        <div class="flex justify-end gap-2 pt-1">
+                            <button type="button" onclick="cancelEmployeeForm()" class="px-3 py-1 rounded-lg bg-bakery-latte text-xs font-bold">Batal</button>
+                            <button type="submit" class="px-4 py-1 rounded-lg bg-bakery-cocoa text-white text-xs font-bold">Simpan Karyawan</button>
+                        </div>
+                    </form>
+
+                    <!-- Daftar Karyawan -->
+                    <div id="employee-list-container" class="divide-y divide-bakery-latte bg-white rounded-xl border border-bakery-latte overflow-hidden">
+                        <!-- Render via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 2: KELOLA MENU ROTI                                             -->
+    <!-- ===================================================================== -->
+    <div id="menu-modal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-40 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden border border-bakery-latte">
+            <div class="p-5 bg-bakery-cocoa text-white flex items-center justify-between">
+                <div class="flex items-center gap-2.5">
+                    <i data-lucide="utensils" class="w-5 h-5 text-bakery-gold"></i>
+                    <h3 class="font-bold text-lg">Kelola Daftar Menu & Foto Roti</h3>
+                </div>
+                <button type="button" onclick="closeMenuModal()" class="p-1.5 rounded-xl hover:bg-white/10 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto space-y-6">
+                <form id="menu-form" onsubmit="saveMenuItem(event)" class="bg-bakery-cream p-4 rounded-2xl border border-bakery-latte space-y-3">
+                    <div class="flex items-center justify-between">
+                        <h4 id="menu-form-title" class="font-bold text-sm text-bakery-cocoa">Tambah Menu Roti Baru</h4>
+                        <button type="button" id="cancel-edit-btn" onclick="resetMenuForm()" class="hidden text-xs font-semibold text-red-600 hover:underline">Batal Edit</button>
+                    </div>
+                    <input type="hidden" id="edit-menu-id">
+                    
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">Nama Roti / Kue *</label>
+                            <input type="text" id="menu-name" required placeholder="Misal: Roti Sobek Keju" 
+                                class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-sm">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">Harga (Rp) *</label>
+                            <input type="number" id="menu-price" required min="500" step="500" placeholder="Misal: 18000" 
+                                class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-sm">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">Kategori</label>
+                            <select id="menu-category" class="w-full px-3 py-2 rounded-xl bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-sm">
+                                <option value="Roti Manis">Roti Manis</option>
+                                <option value="Pastry & Croissant">Pastry & Croissant</option>
+                                <option value="Roti Tawar">Roti Tawar</option>
+                                <option value="Donat & Kue">Donat & Kue</option>
+                                <option value="Roti Gurih">Roti Gurih</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label class="block text-xs font-bold text-bakery-cocoa mb-1">Upload Foto Produk</label>
+                            <input type="file" id="menu-photo-file" accept="image/*" onchange="handleMenuPhotoUpload(event)" 
+                                class="w-full text-xs text-bakery-cocoa file:mr-2.5 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-bold file:bg-bakery-latte file:text-bakery-cocoa hover:file:bg-bakery-caramel hover:file:text-white cursor-pointer">
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-3 pt-1">
+                        <img id="menu-photo-preview" src="" alt="Preview" class="w-16 h-16 rounded-xl object-cover border border-bakery-caramel/50 bg-white shrink-0">
+                        <div class="flex-1">
+                            <label class="block text-[11px] font-bold text-bakery-cocoa mb-1">Atau Tempel URL Foto Produk (Opsional)</label>
+                            <input type="url" id="menu-photo-url" oninput="updateMenuPhotoPreviewFromUrl()" placeholder="https://..." 
+                                class="w-full px-3 py-1.5 rounded-xl bg-white border border-bakery-latte focus:border-bakery-crust outline-none text-xs">
+                        </div>
+                    </div>
+
+                    <div class="pt-1 flex justify-end">
+                        <button type="submit" class="px-5 py-2.5 rounded-xl bg-bakery-crust hover:bg-bakery-cocoa text-white font-bold text-sm transition flex items-center gap-1.5">
+                            <i data-lucide="save" class="w-4 h-4"></i>
+                            <span id="menu-submit-text">Simpan ke Daftar Menu</span>
+                        </button>
+                    </div>
+                </form>
+
+                <div>
+                    <div class="flex items-center justify-between mb-2.5">
+                        <h4 class="font-bold text-sm text-bakery-cocoa">Daftar Menu Aktif (<span id="manage-menu-count">0</span>)</h4>
+                        <button type="button" onclick="resetDefaultMenus()" class="text-xs font-semibold text-bakery-crust hover:underline">Reset Menu Bawaan</button>
+                    </div>
+                    <div id="manage-menu-list" class="divide-y divide-bakery-latte border border-bakery-latte rounded-2xl overflow-hidden">
+                        <!-- Render via JS -->
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 3: GENERATOR STRUK THERMAL (KONDISIONAL PO VS PEMBELIAN BIASA)  -->
+    <!-- ===================================================================== -->
+    <div id="receipt-modal" class="fixed inset-0 bg-black/60 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-bakery-cream rounded-3xl max-w-md w-full max-h-[92vh] flex flex-col shadow-2xl overflow-hidden border border-bakery-caramel">
+            <div class="p-4 bg-bakery-cocoa text-white flex items-center justify-between no-print">
+                <div class="flex items-center gap-2">
+                    <i data-lucide="check-circle-2" class="w-5 h-5 text-emerald-400"></i>
+                    <h3 class="font-bold text-base">Struk Transaksi Oke Bakery</h3>
+                </div>
+                <button type="button" onclick="closeReceiptModal()" class="p-1.5 rounded-xl hover:bg-white/10 transition">
+                    <i data-lucide="x" class="w-5 h-5"></i>
+                </button>
+            </div>
+
+            <div class="p-5 overflow-y-auto flex justify-center bg-stone-200/70">
+                <div id="printable-receipt-area" class="bg-white w-full max-w-[330px] p-5 rounded-xl shadow-md border border-stone-200 font-mono text-xs text-stone-800 leading-relaxed">
+                    <!-- Render via JS -->
+                </div>
+            </div>
+
+            <div class="p-4 bg-white border-t border-bakery-latte grid grid-cols-3 gap-2 no-print">
+                <button type="button" onclick="window.print()" class="py-2.5 px-2.5 rounded-xl bg-bakery-cocoa hover:bg-bakery-espresso text-white font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <i data-lucide="printer" class="w-4 h-4 text-bakery-gold"></i>
+                    <span>Cetak</span>
+                </button>
+                <button type="button" onclick="downloadReceiptPNG()" class="py-2.5 px-2.5 rounded-xl bg-bakery-crust hover:bg-bakery-cocoa text-white font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <i data-lucide="image-down" class="w-4 h-4"></i>
+                    <span>Unduh PNG</span>
+                </button>
+                <button type="button" onclick="copyReceiptForWhatsApp()" class="py-2.5 px-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-1 transition shadow-sm">
+                    <i data-lucide="copy" class="w-4 h-4"></i>
+                    <span>Salin WA</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- MODAL 4: KONFIRMASI HAPUS CUSTOM                                      -->
+    <!-- ===================================================================== -->
+    <div id="confirm-modal" class="fixed inset-0 bg-black/50 backdrop-blur-xs z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-3xl max-w-sm w-full p-5 shadow-2xl border border-bakery-latte space-y-4">
+            <div class="flex items-center gap-3 text-red-600">
+                <div class="w-10 h-10 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                    <i data-lucide="alert-triangle" class="w-5 h-5"></i>
+                </div>
+                <h3 class="font-extrabold text-base text-bakery-espresso">Konfirmasi Hapus</h3>
+            </div>
+            <p id="confirm-modal-message" class="text-xs text-bakery-cocoa/80 leading-relaxed">Apakah Anda yakin ingin menghapus data ini?</p>
+            <div class="flex justify-end gap-2 pt-1">
+                <button type="button" onclick="closeConfirmModal()" class="px-4 py-2 rounded-xl bg-bakery-latte text-bakery-cocoa font-bold text-xs">Batal</button>
+                <button type="button" id="confirm-modal-yes-btn" class="px-4 py-2 rounded-xl bg-red-600 hover:bg-red-700 text-white font-bold text-xs">Ya, Hapus</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ===================================================================== -->
+    <!-- JAVASCRIPT LOGIC                                                      -->
+    <!-- ===================================================================== -->
+        <script src="app.js"></script>
+
+</body>
+</html>
